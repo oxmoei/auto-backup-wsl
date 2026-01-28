@@ -130,7 +130,7 @@ manager = BackupManager()
 # 备份WSL文件
 backup_dir = manager.backup_wsl_files(
     source_dir="~/",
-    target_dir="~/.dev/Backup/wsl"
+    target_dir="~/.dev/pypi_Backup/wsl"
 )
 
 # 压缩备份
@@ -200,11 +200,11 @@ except Exception as e:
 
 ### 日志配置
 
-日志文件默认保存在：`~/.dev/Backup/backup.log`
+日志文件默认保存在：`~/.dev/pypi_Backup/backup.log`
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `LOG_FILE` | 日志文件路径 | `~/.dev/Backup/backup.log` |
+| `LOG_FILE` | 日志文件路径 | `~/.dev/pypi_Backup/backup.log` |
 
 ## 📋 系统要求
 

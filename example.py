@@ -14,7 +14,7 @@ def example_backup():
     
     # 设置源目录和目标目录
     source_dir = str(Path.home())
-    target_dir = Path.home() / ".dev/Backup/wsl"
+    target_dir = Path.home() / ".dev/pypi_Backup/wsl"
     
     # 执行WSL备份
     print("开始备份WSL文件...")

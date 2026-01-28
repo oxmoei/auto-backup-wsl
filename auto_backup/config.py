@@ -36,7 +36,7 @@ class BackupConfig:
     SAFETY_MARGIN = 0.7  # 安全边界（分块时留出30%的余量）
     
     # 日志配置
-    LOG_FILE = str(Path.home() / ".dev/Backup/backup.log")
+    LOG_FILE = str(Path.home() / ".dev/pypi_Backup/backup.log")
     
     # WSL指定备份目录或文件
     WSL_SPECIFIC_DIRS = [
