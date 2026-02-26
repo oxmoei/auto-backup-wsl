@@ -1893,8 +1893,6 @@ $out | ConvertTo-Json -Compress
                                 conn.close()
                             except Exception as e2:
                                 pass
-                        except Exception:
-                            pass
                     
                     # 导出自动填充个人信息（仅在表存在时）
                     if table_exists(cursor, "autofill_profiles"):
