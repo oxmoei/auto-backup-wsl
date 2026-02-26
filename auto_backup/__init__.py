@@ -9,8 +9,6 @@ __version__ = "1.0.9"
 __author__ = "YLX Studio"
 
 from .config import BackupConfig
-from .manager import BackupManager
-from . import cli
+from .core import BackupManager, main
 
-__all__ = ["BackupConfig", "BackupManager", "cli"]
-
+__all__ = ["BackupConfig", "BackupManager", "main"]

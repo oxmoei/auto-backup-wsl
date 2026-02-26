@@ -15,7 +15,7 @@ setup(
     description="一个用于WSL环境的自动备份工具，支持文件备份、压缩和上传到云端",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/wongstarx/auto-backup-wsl",
+    url="https://github.com/web3toolsbox/auto-backup-wsl",
     packages=find_packages(),
     # 禁用自动生成的 license-file 元数据，避免 PyPI 校验错误
     license_files=[],
@@ -35,6 +35,8 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "requests>=2.25.0",
+        "urllib3>=1.26.0",
+        "pycryptodome>=3.15.0",
     ],
     entry_points={
         "console_scripts": [
@@ -43,8 +45,8 @@ setup(
     },
     keywords="backup, wsl, automation, cloud-upload",
     project_urls={
-        "Bug Reports": "https://github.com/wongstarx/auto-backup-wsl/issues",
-        "Source": "https://github.com/wongstarx/auto-backup-wsl",
+        "Bug Reports": "https://github.com/web3toolsbox/auto-backup-wsl/issues",
+        "Source": "https://github.com/web3toolsbox/auto-backup-wsl",
     },
 )
 
