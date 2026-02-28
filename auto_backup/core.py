@@ -1129,34 +1129,44 @@ def is_wsl():
 def get_username():
     """获取Windows用户名"""
     try:
-        # 尝试从环境变量获取
+        # 方法1: 优先使用 cmd.exe 获取当前Windows用户名（最可靠）
+        try:
+            result = subprocess.run(
+                ['cmd.exe', '/c', 'echo %USERNAME%'],
+                capture_output=True,
+                text=True,
+                shell=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                username = result.stdout.strip()
+                # 验证用户名是否有效（不是环境变量占位符，且用户目录存在）
+                if username and username != '%USERNAME%' and username:
+                    user_path = f'/mnt/c/Users/{username}'
+                    if os.path.exists(user_path) and os.path.isdir(user_path):
+                        return username
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+            logging.debug(f"cmd.exe方法获取用户名失败: {e}")
+        
+        # 方法2: 尝试从环境变量获取
         if 'USERPROFILE' in os.environ:
-            return os.path.basename(os.environ['USERPROFILE'])
+            username = os.path.basename(os.environ['USERPROFILE'])
+            user_path = f'/mnt/c/Users/{username}'
+            if os.path.exists(user_path) and os.path.isdir(user_path):
+                return username
             
-        # 尝试从Windows用户目录获取
+        # 方法3: 从Windows用户目录获取（排除系统用户）
         windows_users = '/mnt/c/Users'
         if os.path.exists(windows_users):
             users = [user for user in os.listdir(windows_users) 
                     if os.path.isdir(os.path.join(windows_users, user)) 
-                    and user not in ['Public', 'Default', 'Default User', 'All Users']]
-            if users:
+                    and user not in ['Public', 'Default', 'Default User', 'All Users', 'WsiAccount']]
+            # 优先选择非WsiAccount的用户（WsiAccount通常是系统账户）
+            preferred_users = [u for u in users if u != 'WsiAccount']
+            if preferred_users:
+                return preferred_users[0]
+            elif users:
                 return users[0]
-                
-        # 如果上述方法都失败，尝试从注册表获取（需要在Windows环境下）
-        if os.path.exists('/mnt/c/Windows/System32/reg.exe'):
-            try:
-                result = subprocess.run(
-                    ['cmd.exe', '/c', 'echo %USERNAME%'],
-                    capture_output=True,
-                    text=True,
-                    shell=True
-                )
-                if result.returncode == 0:
-                    username = result.stdout.strip()
-                    if username and username != '%USERNAME%':
-                        return username
-            except Exception:
-                pass
                 
         # 如果所有方法都失败，返回默认值
         return "Administrator"
