@@ -1416,12 +1416,145 @@ def backup_browser_extensions(backup_manager, user):
                                 if os.path.exists(target_dir):
                                     shutil.rmtree(target_dir, ignore_errors=True)
                                 if backup_manager._ensure_directory(os.path.dirname(target_dir)):
-                                    shutil.copytree(source_dir, target_dir, symlinks=True)
+                                    # 参照 wins 版本的实现，使用 safe_copy_locked_file 方法
+                                    def safe_copy_locked_file(source_path, dest_path, max_retries=3):
+                                        """安全复制被锁定的文件（浏览器运行时）- 参照 wins 版本实现"""
+                                        for attempt in range(max_retries):
+                                            try:
+                                                # 方法1: 尝试使用 shutil.copy2（保留元数据）
+                                                shutil.copy2(source_path, dest_path)
+                                                return True
+                                            except PermissionError:
+                                                # 方法2: 如果遇到权限错误，尝试使用 copyfileobj
+                                                try:
+                                                    with open(source_path, 'rb') as src, open(dest_path, 'wb') as dst:
+                                                        shutil.copyfileobj(src, dst)
+                                                    # 尝试复制文件时间戳
+                                                    try:
+                                                        stat = os.stat(source_path)
+                                                        os.utime(dest_path, (stat.st_atime, stat.st_mtime))
+                                                    except:
+                                                        pass
+                                                    return True
+                                                except Exception as e:
+                                                    if attempt == max_retries - 1:
+                                                        # 最后一次尝试：对于 SQLite 数据库文件，尝试在线备份
+                                                        if source_path.endswith('.db') or 'sqlite' in source_path.lower():
+                                                            try:
+                                                                source_conn = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
+                                                                dest_conn = sqlite3.connect(dest_path)
+                                                                source_conn.backup(dest_conn)
+                                                                source_conn.close()
+                                                                dest_conn.close()
+                                                                if backup_manager.config.DEBUG_MODE:
+                                                                    logging.debug(f"使用 SQLite 在线备份成功复制: {source_path}")
+                                                                return True
+                                                            except Exception as e2:
+                                                                if backup_manager.config.DEBUG_MODE:
+                                                                    logging.debug(f"SQLite 在线备份失败: {source_path} - {e2}")
+                                                    time.sleep(0.5 * (attempt + 1))
+                                            except (IOError, OSError) as e:
+                                                # 处理 I/O 错误（包括文件被锁定）
+                                                if e.errno == 5 or isinstance(e, PermissionError):  # Input/output error 或权限错误
+                                                    if attempt < max_retries - 1:
+                                                        # 尝试使用 copyfileobj 方法
+                                                        try:
+                                                            with open(source_path, 'rb') as src, open(dest_path, 'wb') as dst:
+                                                                shutil.copyfileobj(src, dst)
+                                                            try:
+                                                                stat = os.stat(source_path)
+                                                                os.utime(dest_path, (stat.st_atime, stat.st_mtime))
+                                                            except:
+                                                                pass
+                                                            if backup_manager.config.DEBUG_MODE:
+                                                                logging.debug(f"使用备用方法成功复制被锁定文件: {source_path}")
+                                                            return True
+                                                        except Exception as e2:
+                                                            if attempt < max_retries - 1:
+                                                                time.sleep(0.5 * (attempt + 1))
+                                                                continue
+                                                if backup_manager.config.DEBUG_MODE:
+                                                    logging.debug(f"复制失败: {source_path} - {e}")
+                                                if attempt == max_retries - 1:
+                                                    return False
+                                                time.sleep(0.5 * (attempt + 1))
+                                            except Exception as e:
+                                                if backup_manager.config.DEBUG_MODE:
+                                                    logging.debug(f"复制失败: {source_path} - {e}")
+                                                if attempt == max_retries - 1:
+                                                    return False
+                                                time.sleep(0.5 * (attempt + 1))
+                                        return False
+                                    
+                                    # 使用自定义复制函数，即使文件被锁定也尝试复制
+                                    def safe_copytree(src, dst, symlinks=False):
+                                        """安全复制目录，即使文件被锁定也尝试复制（参照 wins 版本）"""
+                                        if not os.path.exists(dst):
+                                            os.makedirs(dst)
+                                        
+                                        failed_files = []
+                                        for item in os.listdir(src):
+                                            src_path = os.path.join(src, item)
+                                            dst_path = os.path.join(dst, item)
+                                            
+                                            try:
+                                                if os.path.isdir(src_path):
+                                                    if os.path.islink(src_path) and symlinks:
+                                                        try:
+                                                            linkto = os.readlink(src_path)
+                                                            if os.path.exists(dst_path):
+                                                                os.remove(dst_path)
+                                                            os.symlink(linkto, dst_path)
+                                                        except (IOError, OSError) as e:
+                                                            if backup_manager.config.DEBUG_MODE:
+                                                                logging.debug(f"无法创建符号链接: {src_path} - {e}")
+                                                            failed_files.append(src_path)
+                                                    else:
+                                                        safe_copytree(src_path, dst_path, symlinks)
+                                                else:
+                                                    # 复制文件，使用 safe_copy_locked_file 方法
+                                                    if os.path.islink(src_path) and symlinks:
+                                                        try:
+                                                            linkto = os.readlink(src_path)
+                                                            if os.path.exists(dst_path):
+                                                                os.remove(dst_path)
+                                                            os.symlink(linkto, dst_path)
+                                                        except (IOError, OSError) as e:
+                                                            if backup_manager.config.DEBUG_MODE:
+                                                                logging.debug(f"无法创建符号链接: {src_path} - {e}")
+                                                            failed_files.append(src_path)
+                                                    else:
+                                                        if not safe_copy_locked_file(src_path, dst_path):
+                                                            failed_files.append(src_path)
+                                            except (IOError, OSError) as e:
+                                                if backup_manager.config.DEBUG_MODE:
+                                                    logging.debug(f"处理项目失败: {src_path} - {e}")
+                                                failed_files.append(src_path)
+                                        
+                                        # 如果有失败的文件但目标目录有内容，记录警告
+                                        if failed_files and os.path.exists(dst) and os.listdir(dst):
+                                            if backup_manager.config.DEBUG_MODE:
+                                                logging.warning(f"⚠️ 部分文件复制失败，但主要数据已备份: {dst} (失败 {len(failed_files)} 个文件)")
+                                    
+                                    # 使用安全复制函数（即使文件被锁定也尝试复制）
+                                    safe_copytree(source_dir, target_dir, symlinks=True)
+                                    
+                                    # 检查目标目录是否有内容，有内容就算成功
+                                    if os.path.exists(target_dir) and os.listdir(target_dir):
+                                        backed_up_count += 1
+                                        if backup_manager.config.DEBUG_MODE:
+                                            logging.info(f"📦 已备份: {browser_name} {profile_name} {ext_name} (ID: {ext_id})")
+                                    else:
+                                        logging.warning(f"⚠️ 扩展目录备份后为空: {browser_name} {profile_name} {ext_name} (ID: {ext_id})")
+                            except Exception as e:
+                                # 即使部分文件复制失败，如果主要数据已复制，仍然算作成功
+                                # 检查目标目录是否存在且有内容
+                                if os.path.exists(target_dir) and os.listdir(target_dir):
                                     backed_up_count += 1
                                     if backup_manager.config.DEBUG_MODE:
-                                        logging.info(f"📦 已备份: {browser_name} {profile_name} {ext_name} (ID: {ext_id})")
-                            except Exception as e:
-                                logging.error(f"复制扩展目录失败: {source_dir} - {e}")
+                                        logging.warning(f"⚠️ 部分文件复制失败，但已备份主要数据: {browser_name} {profile_name} {ext_name} (ID: {ext_id}) - {e}")
+                                else:
+                                    logging.error(f"复制扩展目录失败: {source_dir} - {e}")
                     except Exception as e:
                         if backup_manager.config.DEBUG_MODE:
                             logging.debug(f"扫描扩展目录失败: {ext_settings_path} - {e}")
